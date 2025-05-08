@@ -59,4 +59,5 @@ def show3():
 
 
 if __name__ == '__main__':
-    show2()
+    # show2()
+    show3()
