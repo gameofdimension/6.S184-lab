@@ -29,6 +29,7 @@ def bench_mps_mm():
             for num_threads in [1, 4, 16, 32]:
                 for device in devices:
                     sub_label = f"{k}x{k}, {dtype}, {device}"
+                    print(sub_label)
                     a = torch.randn(k, k, device=device, dtype=dtype)
                     b = torch.randn(k, k, device=device, dtype=dtype)
 
