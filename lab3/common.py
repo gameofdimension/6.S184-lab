@@ -573,15 +573,24 @@ class CFGTrainer(Trainer):
 
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
         # Step 1: Sample z,y from p_data
-        pass
+        # pass
+        z, y = self.path.p_data.sample(batch_size)
 
         # Step 2: Set each label to 10 (i.e., null) with probability eta
-        pass
+        # pass
+        idx = torch.rand(batch_size) < self.eta
+        y[idx] = 10
 
         # Step 3: Sample t and x
-        pass
+        # pass
+        t = torch.rand(batch_size)
+        x = self.path.sample_conditional_path(z, t)
 
         # Step 4: Regress and output loss
-        pass
+        # pass
+        u_theta = self.model(x, t, y)
+        u_t = self.path.conditional_vector_field(x, z, t)
+        loss = torch.mean((u_theta - u_t) ** 2)
+        return loss
 
-        raise NotImplementedError("Implement me in Question 2.2!")
+        # raise NotImplementedError("Implement me in Question 2.2!")
