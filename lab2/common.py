@@ -958,3 +958,51 @@ class ScoreFromVectorField(torch.nn.Module):
         beta_dt = self.beta.dt(t)
 
         return (alpha_t * u_theta - alpha_dt * x) / (beta_t**2 * alpha_dt - alpha_t * beta_t * beta_dt)
+
+
+class LinearConditionalProbabilityPath(ConditionalProbabilityPath):
+    def __init__(self, p_simple: Sampleable, p_data: Sampleable):
+        super().__init__(p_simple, p_data)
+
+    def sample_conditioning_variable(self, num_samples: int) -> torch.Tensor:
+        """
+        Samples the conditioning variable z ~ p_data(x)
+        Args:
+            - num_samples: the number of samples
+        Returns:
+            - z: samples from p(z), (num_samples, ...)
+        """
+        return self.p_data.sample(num_samples)
+
+    def sample_conditional_path(self, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Samples the random variable X_t = (1-t) X_0 + tz
+        Args:
+            - z: conditioning variable (num_samples, dim)
+            - t: time (num_samples, 1)
+        Returns:
+            - x: samples from p_t(x|z), (num_samples, dim)
+        """
+        # raise NotImplementedError("Fill me in for Question 4.1!")
+
+        return t * z + (1 - t) * self.p_simple.sample(z.shape[0])
+
+    def conditional_vector_field(self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Evaluates the conditional vector field u_t(x|z) = (z - x) / (1 - t)
+        Note: Only defined on t in [0,1)
+        Args:
+            - x: position variable (num_samples, dim)
+            - z: conditioning variable (num_samples, dim)
+            - t: time (num_samples, 1)
+        Returns:
+            - conditional_vector_field: conditional vector field (num_samples, dim)
+        """
+        # raise NotImplementedError("Fill me in for Question 4.1!")
+        return (z - x) / (1 - t + 1e-8)
+
+    def conditional_score(self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Not known for Linear Conditional Probability Paths
+        """
+        raise Exception("You should not be calling this function!")
