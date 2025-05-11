@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple, Type
 
 import matplotlib.cm as cm
 import numpy as np
@@ -768,3 +768,95 @@ class ConditionalVectorFieldSDE(SDE):
             - u_t(x|z): shape (batch_size, dim)
         """
         return self.sigma * torch.randn_like(x)
+
+
+def build_mlp(dims: List[int], activation: Type[torch.nn.Module] = torch.nn.SiLU):
+    mlp = []
+    for idx in range(len(dims) - 1):
+        mlp.append(torch.nn.Linear(dims[idx], dims[idx + 1]))
+        if idx < len(dims) - 2:
+            mlp.append(activation())
+    return torch.nn.Sequential(*mlp)
+
+
+class MLPVectorField(torch.nn.Module):
+    """
+    MLP-parameterization of the learned vector field u_t^theta(x)
+    """
+
+    def __init__(self, dim: int, hiddens: List[int]):
+        super().__init__()
+        self.dim = dim
+        self.net = build_mlp([dim + 1] + hiddens + [dim])
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        """
+        Args:
+        - x: (bs, dim)
+        Returns:
+        - u_t^theta(x): (bs, dim)
+        """
+        xt = torch.cat([x, t], dim=-1)
+        return self.net(xt)
+
+
+class Trainer(ABC):
+    def __init__(self, model: torch.nn.Module):
+        super().__init__()
+        self.model = model
+
+    @abstractmethod
+    def get_train_loss(self, **kwargs) -> torch.Tensor:
+        pass
+
+    def get_optimizer(self, lr: float):
+        return torch.optim.Adam(self.model.parameters(), lr=lr)
+
+    def train(self, num_epochs: int, device: torch.device, lr: float = 1e-3, **kwargs) -> torch.Tensor:
+        # Start
+        self.model.to(device)
+        opt = self.get_optimizer(lr)
+        self.model.train()
+
+        # Train loop
+        pbar = tqdm(enumerate(range(num_epochs)))
+        for idx, epoch in pbar:
+            opt.zero_grad()
+            loss = self.get_train_loss(**kwargs)
+            loss.backward()
+            opt.step()
+            pbar.set_description(f'Epoch {idx}, loss: {loss.item()}')
+
+        # Finish
+        self.model.eval()
+
+
+class ConditionalFlowMatchingTrainer(Trainer):
+    def __init__(self, path: ConditionalProbabilityPath, model: MLPVectorField, **kwargs):
+        super().__init__(model, **kwargs)
+        self.path = path
+
+    def get_train_loss(self, batch_size: int) -> torch.Tensor:
+        # raise NotImplementedError("Fill me in for Question 3.1!")
+        t = torch.rand(batch_size, 1)  # (bs, 1)
+        z = self.path.sample_conditioning_variable(batch_size)
+        x = self.path.sample_conditional_path(z, t)
+        u_t = self.path.conditional_vector_field(x, z, t)
+        u_theta = self.model(x, t)
+        loss = torch.mean(torch.sum((u_t - u_theta) ** 2, dim=-1))
+        return loss
+
+
+class LearnedVectorFieldODE(ODE):
+    def __init__(self, net: MLPVectorField):
+        self.net = net
+
+    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            - x: (bs, dim)
+            - t: (bs, dim)
+        Returns:
+            - u_t: (bs, dim)
+        """
+        return self.net(x, t)
