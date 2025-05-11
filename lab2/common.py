@@ -930,3 +930,31 @@ class LangevinFlowSDE(SDE):
             - u_t(x|z): shape (batch_size, dim)
         """
         return self.sigma * torch.randn_like(x)
+
+
+class ScoreFromVectorField(torch.nn.Module):
+    """
+    Parameterization of score via learned vector field (for the special case of a Gaussian conditional probability path)
+    """
+
+    def __init__(self, vector_field: MLPVectorField, alpha: Alpha, beta: Beta):
+        super().__init__()
+        self.vector_field = vector_field
+        self.alpha = alpha
+        self.beta = beta
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        """
+        Args:
+        - x: (bs, dim)
+        Returns:
+        - score: (bs, dim)
+        """
+        # raise NotImplementedError("Fill me in for Question 3.3!")
+        u_theta = self.vector_field(x, t)
+        alpha_t = self.alpha(t)
+        beta_t = self.beta(t)
+        alpha_dt = self.alpha.dt(t)
+        beta_dt = self.beta.dt(t)
+
+        return (alpha_t * u_theta - alpha_dt * x) / (beta_t**2 * alpha_dt - alpha_t * beta_t * beta_dt)
