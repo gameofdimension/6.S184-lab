@@ -6,9 +6,8 @@ from IPython.display import HTML
 from matplotlib import pyplot as plt
 
 # from lab1.brownian_motion import device
-from lab1.lab_one import (SDE, Density, EulerMaruyamaSimulator, Gaussian,
-                          GaussianMixture, Sampleable, Simulator,
-                          imshow_density)
+from lab_one import (SDE, Density, Sampleable, Simulator,
+                     imshow_density)
 
 # """### Question 3.1: Implementing Langevin Dynamics
 
@@ -207,69 +206,3 @@ def animate_dynamics(
     animation.save(save_path)
     plt.close()
     return HTML(animation.to_html5_video())
-
-
-def show1():
-    # Construct the simulator
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    target = GaussianMixture.random_2D(nmodes=5, std=0.75, scale=15.0, seed=3.0).to(device)
-    sde = LangevinSDE(sigma=10.0, density=target)
-    simulator = EulerMaruyamaSimulator(sde)
-
-    # Graph the results!
-    graph_dynamics(
-        num_samples=1000,
-        source_distribution=Gaussian(mean=torch.zeros(2), cov=20 * torch.eye(2)).to(device),
-        simulator=simulator,
-        density=target,
-        timesteps=torch.linspace(0, 5.0, 1000).to(device),
-        plot_every=334,
-        bins=200,
-        scale=15
-    )
-
-
-def show2():
-    # OPTIONAL CELL
-    # Construct the simulator
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    target = GaussianMixture.random_2D(nmodes=5, std=0.75, scale=15.0, seed=3.0).to(device)
-    sde = LangevinSDE(sigma=10.0, density=target)
-    simulator = EulerMaruyamaSimulator(sde)
-
-    # Graph the results!
-    animate_dynamics(
-        num_samples=1000,
-        source_distribution=Gaussian(mean=torch.zeros(2), cov=20 * torch.eye(2)).to(device),
-        simulator=simulator,
-        density=target,
-        timesteps=torch.linspace(0, 1.5, 1000).to(device),
-        bins=200,
-        scale=15,
-        animate_every=100
-    )
-
-    # """### Question 3.2: Ornstein-Uhlenbeck as Langevin Dynamics
-    # In this section, we'll finish off with a brief mathematical exercise connecting Langevin dynamics and Ornstein-Uhlenbeck processes. Recall that for (suitably nice) distribution $p$, the *Langevin dynamics* are given by
-    # $$dX_t = \frac{1}{2} \sigma^2\nabla \log p(X_t) dt + \sigma\, dW_t, \quad \quad X_0 = x_0,$$
-    # while for given $\theta, \sigma$, the Ornstein-Uhlenbeck process is given by
-    # $$dX_t = -\theta X_t\, dt + \sigma\, dW_t, \quad \quad X_0 = x_0.$$
-
-    # **Your job**: Show that when $p(x) = N(0, \frac{\sigma^2}{2\theta})$, the score is given by $$\nabla \log p(x) = -\frac{2\theta}{\sigma^2}x.$$
-
-    # **Hint**: The probability density of the Gaussian $p(x) = N(0, \frac{\sigma^2}{2\theta})$ is given by $$p(x) = \frac{1}{\sigma \sqrt{2\pi}} \exp\left(-\frac{x^2\theta}{\sigma^2}\right).$$
-
-    # **Your answer**:
-
-    # **Your job**: Conclude that when $p(x) = N(0, \frac{\sigma^2}{2\theta})$, the Langevin dynamics
-    # $$dX_t = \frac{1}{2} \sigma^2\nabla \log p(X_t) dt + \sigma dW_t,$$
-    # is equivalent to the Ornstein-Uhlenbeck process
-    # $$ dX_t = -\theta X_t\, dt + \sigma\, dW_t, \quad \quad X_0 = 0.$$
-
-    # **Your answer**:
-    # """
-
-
-if __name__ == '__main__':
-    show1()
-    # show2()
