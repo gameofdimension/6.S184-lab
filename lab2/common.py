@@ -860,3 +860,73 @@ class LearnedVectorFieldODE(ODE):
             - u_t: (bs, dim)
         """
         return self.net(x, t)
+
+
+class MLPScore(torch.nn.Module):
+    """
+    MLP-parameterization of the learned score field
+    """
+
+    def __init__(self, dim: int, hiddens: List[int]):
+        super().__init__()
+        self.dim = dim
+        self.net = build_mlp([dim + 1] + hiddens + [dim])
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        """
+        Args:
+        - x: (bs, dim)
+        Returns:
+        - s_t^theta(x): (bs, dim)
+        """
+        xt = torch.cat([x, t], dim=-1)
+        return self.net(xt)
+
+
+class ConditionalScoreMatchingTrainer(Trainer):
+    def __init__(self, path: ConditionalProbabilityPath, model: MLPScore, **kwargs):
+        super().__init__(model, **kwargs)
+        self.path = path
+
+    def get_train_loss(self, batch_size: int) -> torch.Tensor:
+        # raise NotImplementedError("Fill me in for Question 3.2!")
+        t = torch.rand(batch_size, 1)  # (bs, 1)
+        z = self.path.sample_conditioning_variable(batch_size)
+        x = self.path.sample_conditional_path(z, t)
+
+        score_t = self.path.conditional_score(x, z, t)
+        score_theta = self.model(x, t)
+        return torch.mean(torch.sum((score_t - score_theta) ** 2, dim=-1))
+
+
+class LangevinFlowSDE(SDE):
+    def __init__(self, flow_model: MLPVectorField, score_model: MLPScore, sigma: float):
+        """
+        Args:
+        - path: the ConditionalProbabilityPath object to which this vector field corresponds
+        - z: the conditioning variable, (1, dim)
+        """
+        super().__init__()
+        self.flow_model = flow_model
+        self.score_model = score_model
+        self.sigma = sigma
+
+    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            - x: state at time t, shape (bs, dim)
+            - t: time, shape (bs,.)
+        Returns:
+            - u_t(x|z): shape (batch_size, dim)
+        """
+        return self.flow_model(x, t) + 0.5 * self.sigma ** 2 * self.score_model(x, t)
+
+    def diffusion_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            - x: state at time t, shape (bs, dim)
+            - t: time, shape (bs,.)
+        Returns:
+            - u_t(x|z): shape (batch_size, dim)
+        """
+        return self.sigma * torch.randn_like(x)
