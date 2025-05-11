@@ -4,7 +4,7 @@ from typing import List
 import torch
 import torch.nn as nn
 
-from lab3.common import ConditionalVectorField
+from common import ConditionalVectorField
 
 
 class FourierEncoder(nn.Module):
