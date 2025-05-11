@@ -1,17 +1,16 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Type, Tuple, Dict
-import math
+from typing import Optional, Tuple
 
-import numpy as np
-from matplotlib import pyplot as plt
 import matplotlib.cm as cm
-from matplotlib.axes._axes import Axes
+import numpy as np
+import seaborn as sns
 import torch
 import torch.distributions as D
-from torch.func import vmap, jacrev
+from matplotlib import pyplot as plt
+from matplotlib.axes._axes import Axes
+from sklearn.datasets import make_circles, make_moons
+from torch.func import jacrev, vmap
 from tqdm import tqdm
-import seaborn as sns
-from sklearn.datasets import make_moons, make_circles
 
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -679,7 +678,7 @@ class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
             - x: samples from p_t(x|z), (num_samples, dim)
         """
         # raise NotImplementedError("Fill me in for Question 2.2!")
-        return self.alpha(t)*z + self.beta(t) * torch.randn_like(z)
+        return self.alpha(t) * z + self.beta(t) * torch.randn_like(z)
 
     def conditional_vector_field(self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -692,7 +691,8 @@ class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
         Returns:
             - conditional_vector_field: conditional vector field (num_samples, dim)
         """
-        raise NotImplementedError("Fill me in for Question 2.3!")
+        # raise NotImplementedError("Fill me in for Question 2.3!")
+        return (self.alpha.dt(t) - self.beta.dt(t) / self.beta(t) * self.alpha(t)) * z + self.beta.dt(t) / self.beta(t) * x
 
     def conditional_score(self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -705,4 +705,66 @@ class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
         Returns:
             - conditional_score: conditional score (num_samples, dim)
         """
-        raise NotImplementedError("Fill me in for Question 2.4!")
+        # raise NotImplementedError("Fill me in for Question 2.4!")
+        return (self.alpha(t) * z - x) / self.beta(t)**2
+
+
+class ConditionalVectorFieldODE(ODE):
+    def __init__(self, path: ConditionalProbabilityPath, z: torch.Tensor):
+        """
+        Args:
+        - path: the ConditionalProbabilityPath object to which this vector field corresponds
+        - z: the conditioning variable, (1, dim)
+        """
+        super().__init__()
+        self.path = path
+        self.z = z
+
+    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Returns the conditional vector field u_t(x|z)
+        Args:
+            - x: state at time t, shape (bs, dim)
+            - t: time, shape (bs,.)
+        Returns:
+            - u_t(x|z): shape (batch_size, dim)
+        """
+        bs = x.shape[0]
+        z = self.z.expand(bs, *self.z.shape[1:])
+        return self.path.conditional_vector_field(x, z, t)
+
+
+class ConditionalVectorFieldSDE(SDE):
+    def __init__(self, path: ConditionalProbabilityPath, z: torch.Tensor, sigma: float):
+        """
+        Args:
+        - path: the ConditionalProbabilityPath object to which this vector field corresponds
+        - z: the conditioning variable, (1, ...)
+        """
+        super().__init__()
+        self.path = path
+        self.z = z
+        self.sigma = sigma
+
+    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Returns the conditional vector field u_t(x|z)
+        Args:
+            - x: state at time t, shape (bs, dim)
+            - t: time, shape (bs,.)
+        Returns:
+            - u_t(x|z): shape (batch_size, dim)
+        """
+        bs = x.shape[0]
+        z = self.z.expand(bs, *self.z.shape[1:])
+        return self.path.conditional_vector_field(x, z, t) + 0.5 * self.sigma**2 * self.path.conditional_score(x, z, t)
+
+    def diffusion_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            - x: state at time t, shape (bs, dim)
+            - t: time, shape (bs,.)
+        Returns:
+            - u_t(x|z): shape (batch_size, dim)
+        """
+        return self.sigma * torch.randn_like(x)
