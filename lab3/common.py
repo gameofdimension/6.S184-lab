@@ -526,3 +526,62 @@ class MNISTSampler(nn.Module, Sampleable):
         samples = torch.stack(samples).to(self.dummy)
         labels = torch.tensor(labels, dtype=torch.int64).to(self.dummy.device)
         return samples, labels
+
+
+class ConditionalVectorField(nn.Module, ABC):
+    """
+    MLP-parameterization of the learned vector field u_t^theta(x)
+    """
+
+    @abstractmethod
+    def forward(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor):
+        """
+        Args:
+        - x: (bs, c, h, w)
+        - t: (bs, 1, 1, 1)
+        - y: (bs,)
+        Returns:
+        - u_t^theta(x|y): (bs, c, h, w)
+        """
+        pass
+
+
+class CFGVectorFieldODE(ODE):
+    def __init__(self, net: ConditionalVectorField, guidance_scale: float = 1.0):
+        self.net = net
+        self.guidance_scale = guidance_scale
+
+    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+        - x: (bs, c, h, w)
+        - t: (bs, 1, 1, 1)
+        - y: (bs,)
+        """
+        guided_vector_field = self.net(x, t, y)
+        unguided_y = torch.ones_like(y) * 10
+        unguided_vector_field = self.net(x, t, unguided_y)
+        return (1 - self.guidance_scale) * unguided_vector_field + self.guidance_scale * guided_vector_field
+
+
+class CFGTrainer(Trainer):
+    def __init__(self, path: GaussianConditionalProbabilityPath, model: ConditionalVectorField, eta: float, **kwargs):
+        assert eta > 0 and eta < 1
+        super().__init__(model, **kwargs)
+        self.eta = eta
+        self.path = path
+
+    def get_train_loss(self, batch_size: int) -> torch.Tensor:
+        # Step 1: Sample z,y from p_data
+        pass
+
+        # Step 2: Set each label to 10 (i.e., null) with probability eta
+        pass
+
+        # Step 3: Sample t and x
+        pass
+
+        # Step 4: Regress and output loss
+        pass
+
+        raise NotImplementedError("Implement me in Question 2.2!")
