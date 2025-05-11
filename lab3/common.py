@@ -583,7 +583,7 @@ class CFGTrainer(Trainer):
 
         # Step 3: Sample t and x
         # pass
-        t = torch.rand(batch_size, 1, 1, 1)
+        t = torch.rand(batch_size, 1, 1, 1).to(z.device)
         x = self.path.sample_conditional_path(z, t)
 
         # Step 4: Regress and output loss
